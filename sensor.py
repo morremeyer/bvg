@@ -221,6 +221,7 @@ class BvgSensor(Entity):
         timetable_l = list()
         date_now = datetime.now(pytz.timezone(self.hass_config.get("time_zone")))
         for dest in direction:
+            _LOGGER.debug(f"Checking direction {dest}")
             for pos in self.data:
                 # _LOGGER.warning("conf_direction: {} pos_direction {}".format(direction, pos['direction']))
                 # if pos['direction'] in direction:
@@ -257,25 +258,29 @@ class BvgSensor(Entity):
                     else:
                         _LOGGER.debug("Connection lies in the past")
                 else:
-                    _LOGGER.debug("No connection for specified direction")
-            try:
-                _LOGGER.debug("Valid connection found")
-                _LOGGER.debug("Connection: {}".format(timetable_l))
-                return timetable_l[int(nmbr)]
-            except IndexError as e:
-                if self.isCacheValid():
-                    _LOGGER.warning(
-                        "No valid connection found for sensor named {}. Please check your configuration.".format(
-                            self.name
-                        )
+                    _LOGGER.debug("Not a connection for specified direction")
+        try:
+            # Sort connections by when they are due
+            # This is needed when checking multiple directions and fixes possible sorting errors of the BVG API.
+            timetable_l.sort(key=lambda connection: connection[ATTR_DUE_IN])
+
+            _LOGGER.debug("Valid connections found")
+            _LOGGER.debug("Connections: {}".format(timetable_l))
+            return timetable_l[int(nmbr)]
+        except IndexError as e:
+            if self.isCacheValid():
+                _LOGGER.warning(
+                    "No valid connection found for sensor named {}. Please check your configuration.".format(
+                        self.name
                     )
-                    self._isCacheValid = True
-                else:
-                    if self._isCacheValid:
-                        _LOGGER.warning("Cache is outdated.")
-                    self._isCacheValid = False
-                    # _LOGGER.error(e)
-                return None
+                )
+                self._isCacheValid = True
+            else:
+                if self._isCacheValid:
+                    _LOGGER.warning("Cache is outdated.")
+                self._isCacheValid = False
+                # _LOGGER.error(e)
+            return None
 
     def isCacheValid(self):
         date_now = datetime.now(pytz.timezone(self.hass_config.get("time_zone")))
